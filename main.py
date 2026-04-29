@@ -4,7 +4,10 @@ import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 import subprocess
-from shutil import which
+
+import datetime
+import asyncio
+import time
 
 
 screen_size = (1920, 1080)
@@ -21,21 +24,19 @@ detector = vision.HandLandmarker.create_from_options(options)
 camera = cv2.VideoCapture(0)
 
 p = [[0,0] for i in range(21)]           
-finger = [0 for i in range(5)]   
+finger = [0 for i in range(5)] 
+
+max_diff = 1
+delay = datetime.datetime.now().second
+
 
 
 def distanse(x1,y1,x2,y2) -> float:
     return ((x2-x1)**2 +(y2-y1)**2)**0.5
 
-def move_mouse(x,y):
+async def run_process(command):
+    process = await asyncio.create_subprocess_exec(command)
 
-    subprocess.run(["ydotool","mousemove", "--absolute", str(int(x)), str(int(y))])
-def click_left():
-    subprocess.run(["ydotool", "click", "0xC0"])
-
-if which("ydotool") is None:
-    print("ydotool is not installed")
-    exit(1)
 while camera.isOpened():
     success, img = camera.read()
     if not success:continue
@@ -46,7 +47,7 @@ while camera.isOpened():
 
     if detection_results.hand_landmarks:
         
-        for hand_landmarks in detection_results.hand_landmarks:
+        for hand_landmarks in detection_results.hand_landmarks:  
             id = 0
             for landmark in hand_landmarks:
                 x,y = int(landmark.x * img.shape[1], ), int(landmark.y * img.shape[0])
@@ -63,15 +64,27 @@ while camera.isOpened():
                     cv2.circle(img, (x, y), 15, (0, 0, 255), cv2.FILLED)
                 
               
-                print(x,y)
+                # print(x,y)
+        
 
                 id +=1
             for i in range(4,21,4):
                 shortDistance = distanse(p[0][0],p[0][1], p[i-3][0],p[i-3][1]) +  (distanse(p[0][0],p[0][1], p[i-3][0],p[i-3][1])/2.5)
-                print('short: ',shortDistance,'full dist: ',distanse(p[0][0],p[0][1],p[i][0],p[i][1]))
+                # print('short: ',shortDistance,'full dist: ',distanse(p[0][0],p[0][1],p[i][0],p[i][1]))
                 finger[(i-4)//4] = 1 if distanse(p[0][0],p[0][1],p[i][0],p[i][1]) > shortDistance else 0
-                print('i: ',(i-4)//4 )
-            # print(finger)
+                # print('i: ',(i-4)//4 )
+            # print(finger)``
+            
+            now = datetime.datetime.now().second
+            if finger[1] == 1 and finger[2] ==0 and finger[3] == 0 and finger[4] == 1 and abs(now-delay) > max_diff:
+                    asyncio.run(run_process("steam"))
+                    delay = datetime.datetime.now().second
+
+            if finger[1] == 0 and finger[2] == 1 and finger[3] == 0 and finger[4] == 0 and abs(now-delay) > max_diff:
+                asyncio.run(run_process("brave"))
+                delay = datetime.datetime.now().second
+            
+        
             
         
 

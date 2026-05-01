@@ -8,6 +8,10 @@ import subprocess
 import datetime
 import asyncio
 import time
+#------------------------------------
+#       CONFIG COMANDS
+#-----------------------------------
+comands = [[[1,0,0,1],["brave"]]]
 
 
 screen_size = (1920, 1080)
@@ -23,6 +27,13 @@ detector = vision.HandLandmarker.create_from_options(options)
 
 camera = cv2.VideoCapture(0)
 
+
+gesture_active = False
+gesture_start = None
+gesture_fired = False
+swipe_threshold = 100
+
+
 p = [[0,0] for i in range(21)]           
 finger = [0 for i in range(5)] 
 
@@ -30,12 +41,62 @@ max_diff = 1
 delay = datetime.datetime.now().second
 
 
+last_move = 0
 
 def distanse(x1,y1,x2,y2) -> float:
     return ((x2-x1)**2 +(y2-y1)**2)**0.5
 
 async def run_process(command):
+    global last_move
+    if time.time() - last_move < 1.5:
+        return
     process = await asyncio.create_subprocess_exec(command)
+    last_move = time.time()
+
+
+
+def mouse_move(x,y):
+    global last_move
+    if time.time() - last_move < 0.01:
+        return
+    last_move = time.time()
+    subprocess.run(["ydotool", "mousemove", "--absolute", str(int(x)), str(int(y))])
+
+
+def click():
+    global last_move
+    if time.time() - last_move < 0.5:
+        return
+    subprocess.run(["ydotool", "click", "0xC0"])
+    last_move = time.time()
+
+def hand_cneter(p):
+    ind = [0,5,9,13,17]
+    cx = sum(p[i][0] for i in ind)/5
+    cy = sum(p[i][1] for i in ind)/5
+    return cx, cy
+
+def swipe_direction(start,current):
+    dx = current[0] - start[0]
+    dy = current[1] - start[1]
+
+    if abs(dx) > abs(dy):
+        return "left" if dx < 0 else "rigth"
+    else:
+        return "up" if dy < 0 else "down"
+def swipes(dir):
+    if dir == 'left':
+        subprocess.run(["ydotool", "key", "125:1", "105:1", "105:0", "125:0"])
+      
+    if dir == 'right':
+        subprocess.run(["ydotool", "key", "125:1", "106:1", "106:0", "125:0"])
+
+    if dir == 'up':
+        subprocess.run(["ydotool", "key", "125:1", "103:1", "103:0", "125:0"])
+      
+    if dir == 'down':
+        subprocess.run(["ydotool", "key", "125:1", "108:1", "108:0", "125:0"])
+      
 
 while camera.isOpened():
     success, img = camera.read()
@@ -48,23 +109,32 @@ while camera.isOpened():
     if detection_results.hand_landmarks:
         
         for hand_landmarks in detection_results.hand_landmarks:  
-            id = 0
+            id = 0 
             for landmark in hand_landmarks:
                 x,y = int(landmark.x * img.shape[1], ), int(landmark.y * img.shape[0])
                 cv2.circle(img, (x,y), 5, (0,255,0), -1)
                 
 
-                name = landmark.name
+                # name = landmark.name
              
                 p[id][0],p[id][1] = x,y
                 if id == 8:
-                  
+                   
                     cv2.circle(img, (x, y), 15, (0, 100, 255), cv2.FILLED)
                 if id == 12:
                     cv2.circle(img, (x, y), 15, (0, 0, 255), cv2.FILLED)
                 
-              
+                
                 # print(x,y)
+                if id == 8:
+                    pos_x =  screen_size[0]/2- x / img.shape[1] * screen_size[0]/2
+                    pos_y = y /  img.shape[0] * screen_size[1]/2
+                    # print(pos_x,pos_y)``
+                    if finger[1] == 1 and finger[2] ==0 and finger[3] == 0 and finger[4] == 0:
+                        mouse_move(pos_x,pos_y)
+                    if finger[1] == 1 and finger[2] ==1 and finger[3] == 0 and finger[4] == 0:
+                        click() 
+
         
 
                 id +=1
@@ -76,19 +146,47 @@ while camera.isOpened():
             # print(finger)``
             
             now = datetime.datetime.now().second
-            if finger[1] == 1 and finger[2] ==0 and finger[3] == 0 and finger[4] == 1 and abs(now-delay) > max_diff:
-                    asyncio.run(run_process("steam"))
-                    delay = datetime.datetime.now().second
+            for fingers, comand in comands:
+                # print('fingers: ',fingers,'comand: ',comand, 'finger: ', finger )
+                if finger[1] == fingers[0] and finger[2] == fingers[1] and finger[3] == fingers[2] and finger[4] == fingers[3] and abs(now-delay) > max_diff:
+                    if len(comand) == 1:
+                        asyncio.run(run_process(comand[0]))
+                    else: asyncio.run(run_process(comand))
+            
+            cx, cy = hand_cneter(p)
 
-            if finger[1] == 0 and finger[2] == 1 and finger[3] == 0 and finger[4] == 0 and abs(now-delay) > max_diff:
-                asyncio.run(run_process("brave"))
-                delay = datetime.datetime.now().second
+            if finger[1] == 1 and finger[2] == 1 and finger[3] == 1 and finger[4] == 0:
+                if not gesture_active:
+                    gesture_active = True
+                    gesture_start = (cx, cy)
+                    gesture_fired = False 
+                elif not gesture_fired:
+                    gesture_start = (cx, cy)
+                    direction = swipe_direction(gesture_start, (cx,cy))
+                    if abs(cx-gesture_start[0]) > swipe_threshold or abs(cy- gesture_start[1])> swipe_threshold:
+                        swipes(direction)
+                        gesture_fired = True
+            else: gesture_active = False
+            gesture_fired = False
+            gesture_start = None               
+            
+
+            # if finger[1] == 1 and finger[2] ==0 and finger[3] == 0 and finger[4] == 1 and abs(now-delay) > max_diff:
+            #         asyncio.run(run_process("steam"))
+            #         delay = datetime.datetime.now().second
+ 
+            # if finger[1] == 0 and finger[2] == 1 and finger[3] == 0 and finger[4] == 0 and abs(now-delay) > max_diff:
+            #     asyncio.run(run_process("brave"))
+            #     delay = datetime.datetime.now().second
+            # if finger[1] == 0 and finger[2] == 0 and finger[3] == 0 and finger[4] == 0 and abs(now-delay) > max_diff:
+            #     asyncio.run(run_process("reboot"))
+            #     delay = datetime.datetime.now().second
             
         
             
         
 
-
+ 
     cv2.imshow('Hands', img)
     if cv2.waitKey(5) & 0xFF == 27:
         break

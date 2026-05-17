@@ -1,0 +1,49 @@
+{
+  "screen_size": [
+    1920,
+    1080
+  ],
+  "mouse_smooth": 0.4,
+  "deadzone": 3,
+  "scroll_threshold": 124,
+  "scroll_delay": 1.3,
+  "swipe_threshold": 135,
+  "gesture_delay": 1.5,
+  "commands": [
+    {
+      "fingers": [
+        1,
+        0,
+        0,
+        1
+      ],
+      "command": [
+        "brave"
+      ]
+    },
+    {
+      "fingers": [
+        0,
+        1,
+        1,
+        1
+      ],
+      "command": [
+        "kitty"
+      ]
+    },
+    {
+      "fingers": [
+        1,
+        0,
+        1,
+        1
+      ],
+      "command": [
+        "cbonsai",
+        "-i",
+        "-l"
+      ]
+    }
+  ]
+}

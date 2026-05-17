@@ -8,10 +8,28 @@ import subprocess
 import datetime
 import asyncio
 import time
+
+import json
+import threading
+from pathlib import Path
+from flask import Flask, jsonify,request,send_from_directory
+
+  
+
+#----------=====---------
+#          Paths
+#----------=====--------
+CONFIG_PATH = Path("config.json")
+STATIC_DIR = Path("web")
+
+app = Flask(__name__, static_folder=str(STATIC_DIR), static_url_path="/web")
+
+  
+   
 #------------------------------------
 #       CONFIG COMANDS
 #-----------------------------------
-comands = [([1,0,0,1],["brave"])]
+comands = [([1,0,0,1],["brave"])]         
 
   
 screen_size = (1920, 1080)
@@ -43,6 +61,71 @@ delay = datetime.datetime.now().second
 
 last_move = 0
 
+
+#--------------------------------------
+#           WEB FUNCTIONS
+#--------------------------------------
+def load_config():
+    if CONFIG_PATH.exists():
+        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {
+        "screen_size": [1920, 1080],
+        "mouse_smooth": 0.2,
+        "deadzone": 5,
+        "scroll_threshold": 20,
+        "scroll_delay": 0.5,
+        "swipe_threshold": 30,
+        "gesture_delay": 1.5,
+        "commands": []
+    }
+
+def save_config(data):
+    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+        json.dump(data,f,ensure_ascii=False, indent=2)
+
+
+config = load_config()
+
+status = {
+    "running": True,
+    "last_gesture": None,
+    "last_action": None,
+    "fps": 0
+}
+
+@app.get("/")
+def index():
+    return send_from_directory(STATIC_DIR,"index.html")
+   
+
+@app.get("/api/config")
+def api_get_config():
+    return jsonify(config)
+
+@app.post("/api/config")
+def api_set_config():
+    global config
+    data = request.get_json(force=True)
+    config.update(data)
+    save_config(config)
+    return jsonify({"ok":True,"config":config})
+         
+ 
+@app.get("/api/status")
+def api_status():
+    return jsonify(status)
+
+
+def run_web():
+    app.run(host="127.0.0.1", port=8000, debug=False, use_reloader=False)
+
+  
+#--------------------------------------
+#   FUNCTIONS WITH MV AND YDOTOOL...
+#--------------------------------------
+
+
 def distanse(x1,y1,x2,y2) -> float:
     return ((x2-x1)**2 +(y2-y1)**2)**0.5
 
@@ -63,7 +146,10 @@ def mouse_move(x,y):
     last_move = time.time()
     subprocess.run(["ydotool", "mousemove", "--absolute", str(int(x)), str(int(y))])
 
+    
+    
 
+        
 scroll_active = False
 scroll_start = None
 scroll_last = 0
@@ -77,8 +163,8 @@ def key_up():
 def key_down():
     subprocess.run(["ydotool", "key", "108:1", "108:0"])
 
-
-def click():
+         
+def click():   
     global last_move
     if time.time() - last_move < 0.5:
         return
@@ -123,6 +209,11 @@ def smooth(x, y):
 
 last_mouse_x, last_mouse_y = 0,0 
 
+
+#--------------------------------------------------
+#               MAIN FINCTION
+#               !!!!!!!!!!!!!
+#==============================================
 def apply_deadzone(x,y,last_x,last_y,threshold=5):
     if abs(x-last_x) < threshold and abs(y-last_y) < threshold:
         return last_x, last_y
@@ -180,14 +271,24 @@ async def main():
                     finger[(i-4)//4] = 1 if distanse(p[0][0],p[0][1],p[i][0],p[i][1]) > shortDistance else 0
                     # print('i: ',(i-4)//4 )
                 # print(finger)
-                
+                     
                 now = time.time() 
-                for fingers, comand in comands:
-                    # print('fingers: ',fingers,'comand: ',comand, 'finger: ', finger )
-                    if finger[1] == fingers[0] and finger[2] == fingers[1] and finger[3] == fingers[2] and finger[4] == fingers[3] and abs(now-delay) > max_diff:
-                        
-                        await run_process(comand)
-                cx, cy = hand_cneter(p)
+                for item in config.get("commands", []):
+                    fingers = item.get("fingers", [])
+                    command = item.get("command", [])
+
+                    if len(fingers) != 4 or not command:
+                        continue
+
+                    if (
+                        finger[1] == fingers[0] and
+                        finger[2] == fingers[1] and
+                        finger[3] == fingers[2] and
+                        finger[4] == fingers[3] and
+                        abs(now - delay) > max_diff
+                    ):
+                        await run_process(command)         
+                cx, cy = hand_cneter(p) 
 
                 if finger[1] == 1 and finger[2] == 1 and finger[3] == 1 and finger[4] == 0:
                     if not gesture_active:
@@ -243,8 +344,8 @@ async def main():
         cv2.imshow('Hands', img)
         if cv2.waitKey(5) & 0xFF == 27:
             break
-asyncio.run(main())
-camera.release()
-cv2.destroyAllWindows() 
+if __name__ == "__main__":
+    threading.Thread(target=run_web, daemon=True).start()
+    asyncio.run(main())
 
 

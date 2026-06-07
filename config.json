@@ -8,7 +8,8 @@
   "scroll_threshold": 124,
   "scroll_delay": 1.3,
   "swipe_threshold": 135,
-  "gesture_delay": 1.5,
+  "gesture_delay": 1.5,  
+  "zoom_threshold": 20,
   "commands": [
     {
       "fingers": [
@@ -41,4 +42,4 @@
       ]
     }
   ]
-} 
+}

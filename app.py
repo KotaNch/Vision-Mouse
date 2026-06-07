@@ -66,6 +66,12 @@ delay = datetime.datetime.now().second
 
 last_commnad_time = 0.0
 last_move = 0
+last_right_click = 0.0
+
+zoom_active = False
+zoom_start_dist = None
+zoom_last = 0.0
+ZOOM_THRESHOLD = 20  # может потом в конфиг вынести
 
 
 #--------------------------------------
@@ -83,6 +89,7 @@ def load_config():
         "scroll_delay": 0.5,
         "swipe_threshold": 30,
         "gesture_delay": 1.5,
+        "zoom_threshold": 20,
         "commands": []
     }
 
@@ -189,6 +196,34 @@ def click():
         subprocess.run(["ydotool", "click", "0xC0"])
     last_move = time.time()
 
+
+def right_click():
+    global last_right_click
+    if time.time() - last_right_click < 0.8:
+        return
+    if IS_WINDOWS:
+        pyautogui.rightClick()
+    else:
+        subprocess.run(["ydotool","click","0xC1"])
+    last_right_click = time.time()
+    status["last_action"] = "right_click"
+
+
+def do_zoom(dir):
+    # ctrl+= зум, ctrl+- уменьшить
+    if IS_WINDOWS:
+        if dir == "in":
+            pyautogui.hotkey("ctrl","=")
+        else:
+            pyautogui.hotkey("ctrl","-")
+    else:
+        if dir == "in":
+            subprocess.run(["ydotool","key","29:1","13:1","13:0","29:0"])
+        else:
+            subprocess.run(["ydotool","key","29:1","12:1","12:0","29:0"])
+    status["last_action"] = f"zoom_{dir}"
+                              
+
 def hand_cneter(p):
     ind = [0,5,9,13,17]
     cx = sum(p[i][0] for i in ind)/5
@@ -248,11 +283,12 @@ def apply_deadzone(x,y,last_x,last_y,threshold=5):
     threshold = config.get("deadzone",5)
     if abs(x-last_x) < threshold and abs(y-last_y) < threshold:
         return last_x, last_y
-    return x,y
+    return x,y                                       
 async def main():
     global scroll_active,scroll_last,scroll_start
     global gesture_active,gesture_fired,gesture_start
     global last_mouse_x, last_mouse_y
+    global zoom_active, zoom_start_dist, zoom_last
 
     frame_count = 0
     fps_timer = time.time()
@@ -262,8 +298,10 @@ async def main():
         success, img = camera.read()
         if not success:continue
 
-        frame_count+=1
+        frame_count+=1       
 
+           
+  
         elapsed = time.time() - fps_timer
         if elapsed >= 1.0:
             status["fps"] = round(frame_count/elapsed,1)
@@ -292,7 +330,7 @@ async def main():
                 
                     p[id][0],p[id][1] = x,y
                     if id == 8:
-                    
+
                         cv2.circle(img, (x, y), 15, (0, 100, 255), cv2.FILLED)
                     if id == 12:
                         cv2.circle(img, (x, y), 15, (0, 0, 255), cv2.FILLED)
@@ -310,11 +348,13 @@ async def main():
                             mouse_move(sx,sy)
                         if finger[1] == 1 and finger[2] ==1 and finger[3] == 0 and finger[4] == 0:
                            click() 
-
-            
+                        if finger[1] == 0 and finger[2] == 1 and finger[3] == 0 and finger[4] == 0:
+                            right_click()
+                                             
+                                                
                 for i in range(4,21,4):
                     shortDistance = distanse(p[0][0],p[0][1], p[i-3][0],p[i-3][1]) +  (distanse(p[0][0],p[0][1], p[i-3][0],p[i-3][1])/2.5)
-                    # print('short: ',shortDistance,'full dist: ',distan se(p[0][0],p[0][1],p[i][0],p[i][1]))
+                    # print('short: ',shortDistance,'full dist: ',distanse(p[0][0],p[0][1],p[i][0],p[i][1]))
                     finger[(i-4)//4] = 1 if distanse(p[0][0],p[0][1],p[i][0],p[i][1]) > shortDistance else 0
                     # print('i: ',(i-4)//4 )
                 # print(finger)
@@ -369,7 +409,24 @@ async def main():
                 else:
                     scroll_active = False
                     scroll_start = None
-                            
+
+
+                zoom_threshold_val = config.get("zoom_threshold", ZOOM_THRESHOLD)
+                if finger[0] == 1 and finger[1] == 1 and finger[2] == 0 and finger[3] == 0 and finger[4] == 0:
+                    dist_ti = distanse(p[4][0],p[4][1],p[8][0],p[8][1])
+                    if not zoom_active:
+                        zoom_active = True
+                        zoom_start_dist = dist_ti
+                    else:
+                        diff = dist_ti - zoom_start_dist
+                        # print(f"zoom diff: {diff}")
+                        if abs(diff) > zoom_threshold_val and time.time() - zoom_last > 0.4:
+                            do_zoom("in" if diff > 0 else "out")
+                            zoom_start_dist = dist_ti
+                            zoom_last = time.time()
+                else:
+                    zoom_active = False
+                    zoom_start_dist = None
                             
 
                 # if finger[1] == 1 and finger[2] ==0 and finger[3] == 0 and finger[4] == 1 and abs(now-delay) > max_diff:
@@ -387,8 +444,10 @@ async def main():
                 
             
 
-
+        cv2.putText(img, f'FPS: {status["fps"]}', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+        cv2.putText(img, f'gesture: {finger[1:]}', (10, 65), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (180, 180, 180), 1)
         cv2.imshow('Hands', img)
+
         if cv2.waitKey(5) & 0xFF == 27:
             break
 
@@ -396,6 +455,4 @@ async def main():
     cv2.destroyAllWindows()
 if __name__ == "__main__":
     threading.Thread(target=run_web, daemon=True).start()
-    asyncio.run(main())
-
-
+    asyncio.run(main())       

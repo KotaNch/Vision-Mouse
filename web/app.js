@@ -3,8 +3,10 @@ const fields = [
     "deadzone",
     "swipe_threshold",
     "scroll_threshold",
-    "scroll_delay"
-];
+    "scroll_delay",
+    "gesture_delay",    
+    "zoom_threshold"
+];      
 
 function bindPair(name){
     const range = document.getElementById(name);
@@ -120,5 +122,3 @@ function loadCommands(commands){
 }
 
 addCommandButton.addEventListener("click", () => createCommandRow());
-
-

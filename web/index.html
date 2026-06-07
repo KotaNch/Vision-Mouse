@@ -54,6 +54,25 @@
             border-radius: 12px;
             overflow: auto;
         }
+        .gesture-table{
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        .gesture-table td, .gesture-table th{
+            padding: 8px 12px;
+            border: 1px solid #333;
+            text-align: left;
+        }
+        .gesture-table th{
+            background: #222;
+            color: #aaa;
+        }
+        .fingers{
+            font-family: monospace;
+            letter-spacing: 4px;
+            font-size: 18px;
+        }
     </style>
 
 </head> 
@@ -86,8 +105,8 @@
                 </div>
                 <input id="swipe_threshold_value" type="number" step="1">
             </div> 
-
-            <div class="row">
+                    
+            <div class="row">     
                 <div>
                     <label>Scroll Threshold</label>
                     <input id="scroll_threshold" type="range" min="5" max="200" step="1">
@@ -103,6 +122,22 @@
                 <input id="scroll_delay_value" type="number" step="0.05">
             </div>
 
+            <div class="row">
+                <div>
+                    <label>Gesture Delay</label>
+                    <input id="gesture_delay" type="range" min="0.1" max="5" step="0.1">
+                </div>
+                <input id="gesture_delay_value" type="number" step="0.1">
+            </div>
+
+            <div class="row">
+                <div>
+                    <label>Zoom Threshold</label>
+                    <input id="zoom_threshold" type="range" min="5" max="100" step="1">
+                </div>
+                <input id="zoom_threshold_value" type="number" step="1">
+            </div>
+
             <button id="saveButton">Save</button>
         </div>
 
@@ -111,6 +146,27 @@
             <div id="commandsList"></div>
             <button id="addCommandButton">Add command</button>
         </div>
+
+        <div class="card">
+            <h2>Gestures</h2>
+            <table class="gesture-table">
+                <thead>
+                    <tr>
+                        <th>Fingers (idx mid rng pnk)</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td><span class="fingers"></span> 1 0 0 0</td><td>Move mouse</td></tr>
+                    <tr><td><span class="fingers"></span> 1 1 0 0</td><td>Left click</td></tr>
+                    <tr><td><span class="fingers"></span> 0 1 0 0</td><td>Right click</td></tr>
+                    <tr><td><span class="fingers"></span> 1 1 1 0</td><td>Swipe</td></tr>
+                    <tr><td><span class="fingers"></span> 0 0 0 1</td><td>Scroll (up/down)</td></tr>
+                    <tr><td><span class="fingers"></span> thumb+1 0 0 0</td><td>Zoom in / out</td></tr>
+                </tbody>
+            </table>
+        </div>
+
         <div class="card">
             <h2>Status</h2>
             <pre id="statusBox">Loading...</pre>
